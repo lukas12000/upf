@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8am UPF Integration Test - Vercel Deployment</title>
+    <script src="https://cdn.jsdelivr.net/npm/jwt-decode@4.0.0/build/jwt-decode.min.js"
+            onload="console.log('✅ JWT decode library loaded')"
+            onerror="console.error('❌ Failed to load JWT decode library')"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; margin-bottom: 30px; }
+        .info { background: #e3f2fd; padding: 15px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #2196f3; }
+        .step { background: #f8f9fa; padding: 20px; margin: 15px 0; border-radius: 4px; border-left: 4px solid #6c757d; }
+        .step h4 { margin: 0 0 10px 0; color: #495057; }
+        .step p { margin: 5px 0; color: #6c757d; }
+        .status { padding: 8px 12px; border-radius: 4px; margin: 10px 0; font-weight: bold; }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.loading { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .code-block { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 10px 0; overflow-x: auto; }
+        .step-completed { border-left-color: #28a745; background: #d4edda; }
+        .step-error { border-left-color: #dc3545; background: #f8d7da; }
+        .upf-container { margin: 20px 0; padding: 20px; border: 2px solid #dee2e6; border-radius: 8px; background: white; }
+        .loading { text-align: center; color: #6c757d; font-style: italic; }
+        #event-log { max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0; }
+        #event-log div { margin-bottom: 10px; padding: 8px; background: white; border-radius: 4px; border-left: 3px solid #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>8am UPF Integration Test - Vercel Deployment</h1>
+        
+        <div class="info">
+            <h3>🚀 Frontend-Only UPF Test</h3>
+            <p><strong>Purpose:</strong> Test UPF integration on Vercel (HTTPS domain)</p>
+            <p><strong>Public Key:</strong> m_V4LrwNmJTWmD4qW7RffvOQ</p>
+            <p><strong>Amount:</strong> $20.00 (2000 cents)</p>
+            <p><strong>Note:</strong> This version uses mock data for testing UPF functionality</p>
+        </div>
+
+        <div class="step" id="step1">
+            <h4>Step 1: Load UPF Script</h4>
+            <p>Load the UPF script from CDN</p>
+            <button onclick="loadUPFScript()">🔄 Load UPF Script</button>
+            <div id="step1-status"></div>
+        </div>
+
+        <div class="step" id="step2">
+            <h4>Step 2: Use Real JWT Token</h4>
+            <p>Paste your real JWT token for UPF authentication</p>
+            <button onclick="useRealToken()">🎫 Use Real Token</button>
+            <div id="step2-status"></div>
+            <div id="jwt-details" class="code-block" style="display: none;"></div>
+            <div id="real-token-input" style="display: none; margin-top: 10px;">
+                <label for="real-token-field">Enter Real JWT Token:</label><br>
+                <textarea id="real-token-field" rows="3" cols="80" placeholder="Paste your real JWT token here..."></textarea><br>
+                <button onclick="submitRealToken()" style="margin-top: 5px;">✅ Submit Real Token</button>
+            </div>
+        </div>
+
+        <div class="step" id="step3">
+            <h4>Step 3: Initialize UPF Form</h4>
+            <p>Create UPF checkout form with mock data</p>
+            <button onclick="initializeUPFForm()" disabled>🚀 Initialize UPF Form</button>
+            <div id="step3-status"></div>
+        </div>
+
+        <div class="upf-container">
+            <h3>UPF Payment Form</h3>
+            <div id="upf-form-container">
+                <div class="loading">Complete the steps above to initialize UPF...</div>
+            <!-- UPF Checkout will be inserted here after initialization -->
+            <upf-checkout
+                id="upf-checkout-element"
+                style="display: none;"
+                reference="UPF Vercel Test Payment"
+                surcharge-disabled="false"
+                disabled-fields="address2"
+                submit-disabled="false"
+                disabled-payment-methods="loan"
+                test-mode="true"
+                errors=""
+                source-id="Vercel:test-12345"
+            ></upf-checkout>
+            </div>
+        </div>
+
+        <div class="info">
+            <h3>Event Log</h3>
+            <div id="event-log"></div>
+        </div>
+    </div>
+
+    <script>
+        const eventLog = document.getElementById('event-log');
+        const upfContainer = document.getElementById('upf-form-container');
+        let currentToken = null;
+        let upfScriptLoaded = false;
+
+        // Mock data for testing
+        const mockMerchantId = "8A63kbIeQ12s95UFmRefVw";
+        const mockBankAccountId = "E-_e-aczT6KmClSD5XC8Xg";
+
+        function addEvent(eventType, detail) {
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>${eventType}:</strong> ${JSON.stringify(detail, null, 2)}`;
+            div.style.marginBottom = '10px';
+            div.style.padding = '10px';
+            div.style.backgroundColor = '#f8f9fa';
+            div.style.borderRadius = '4px';
+            div.style.fontSize = '12px';
+            div.style.fontFamily = 'monospace';
+            eventLog.appendChild(div);
+        }
+
+        function updateStepStatus(stepId, status, message) {
+            const step = document.getElementById(stepId);
+            const statusDiv = document.getElementById(stepId + '-status');
+            
+            if (status === 'success') {
+                step.classList.add('step-completed');
+                statusDiv.innerHTML = `<div class="status success">✅ ${message}</div>`;
+            } else if (status === 'error') {
+                step.classList.add('step-error');
+                statusDiv.innerHTML = `<div class="status error">❌ ${message}</div>`;
+            } else if (status === 'loading') {
+                statusDiv.innerHTML = `<div class="status loading">🔄 ${message}</div>`;
+            }
+        }
+
+        function enableNextStep(stepId) {
+            const nextStep = document.getElementById(stepId);
+            const button = nextStep.querySelector('button');
+            if (button) {
+                button.disabled = false;
+            }
+        }
+
+        function loadUPFScript() {
+            if (upfScriptLoaded) {
+                updateStepStatus('step1', 'success', 'UPF script already loaded');
+                return;
+            }
+
+            updateStepStatus('step1', 'loading', 'Loading UPF script...');
+            
+            const script = document.createElement('script');
+            script.src = 'https://cdn.affinipay.com/upf-checkout/0.0.82/main.ba238c3dba4048a1e650.bundle.js';
+            script.integrity = 'sha384-qSGaP1M5UeR9pPdirSdeWFhQv15927HLBXV/XM4IAnnlZxnwQhjXddX9QRErSJF5';
+            script.crossOrigin = 'anonymous';
+            
+            script.onload = function() {
+                updateStepStatus('step1', 'success', 'UPF script loaded successfully');
+                addEvent('UPFScriptLoaded', { success: true });
+                upfScriptLoaded = true;
+                setupUPFEventListeners();
+                enableNextStep('step2');
+            };
+            
+            script.onerror = function() {
+                updateStepStatus('step1', 'error', 'Failed to load UPF script');
+                addEvent('UPFScriptError', { error: 'Script failed to load' });
+            };
+            
+            document.head.appendChild(script);
+        }
+
+        function setupUPFEventListeners() {
+            document.addEventListener('UPFLoadSuccess', function(event) {
+                addEvent('UPFLoadSuccess', event.detail);
+                console.log('✅ UPF Load Success:', event.detail);
+            });
+
+            document.addEventListener('UPFLoadFailure', function(event) {
+                addEvent('UPFLoadFailure', event.detail);
+                console.log('❌ UPF Load Failure:', event.detail);
+            });
+
+            document.addEventListener('UPFRenderSuccess', function(event) {
+                addEvent('UPFRenderSuccess', event.detail);
+                console.log('✅ UPF Render Success:', event.detail);
+            });
+
+            document.addEventListener('UPFRenderFailure', function(event) {
+                addEvent('UPFRenderFailure', event.detail);
+                console.log('❌ UPF Render Failure:', event.detail);
+            });
+
+            document.addEventListener('UPFChargeSuccess', function(event) {
+                addEvent('UPFChargeSuccess', event.detail);
+                console.log('✅ UPF Charge Success:', event.detail);
+                
+                const successDiv = document.createElement('div');
+                successDiv.style.cssText = 'padding: 15px; margin: 10px 0; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; color: #155724;';
+                successDiv.innerHTML = `
+                    <strong>🎉 Payment Successful!</strong><br>
+                    Transaction ID: ${event.detail.transaction_id || 'N/A'}<br>
+                    Amount: $${(event.detail.amount || 2000) / 100}<br>
+                    Payment Method: ${event.detail.payment_method || 'N/A'}<br>
+                    <small>Timestamp: ${new Date().toLocaleString()}</small>
+                `;
+                document.getElementById('upf-form-container').appendChild(successDiv);
+            });
+
+            document.addEventListener('UPFChargeFailure', function(event) {
+                addEvent('UPFChargeFailure', event.detail);
+                console.log('❌ UPF Charge Failure:', event.detail);
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = 'padding: 15px; margin: 10px 0; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;';
+                errorDiv.innerHTML = `
+                    <strong>❌ Payment Failed!</strong><br>
+                    Error: ${event.detail.error || 'Unknown error'}<br>
+                    Code: ${event.detail.code || 'N/A'}<br>
+                    <small>Timestamp: ${new Date().toLocaleString()}</small>
+                `;
+                document.getElementById('upf-form-container').appendChild(errorDiv);
+            });
+
+            document.addEventListener('UPFPaymentMethodChange', function(event) {
+                addEvent('UPFPaymentMethodChange', event.detail);
+                console.log('🔄 UPF Payment Method Change:', event.detail);
+            });
+        }
+
+        function useRealToken() {
+            const realTokenInput = document.getElementById('real-token-input');
+            realTokenInput.style.display = 'block';
+            updateStepStatus('step2', 'loading', 'Ready to input real token...');
+        }
+
+        function submitRealToken() {
+            const tokenField = document.getElementById('real-token-field');
+            const token = tokenField.value.trim();
+            
+            if (!token) {
+                updateStepStatus('step2', 'error', 'Please enter a JWT token');
+                return;
+            }
+
+            // Basic JWT format validation
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                updateStepStatus('step2', 'error', 'Invalid JWT format. JWT should have 3 parts separated by dots.');
+                return;
+            }
+
+            currentToken = token;
+            updateStepStatus('step2', 'success', `Real JWT token loaded successfully`);
+            addEvent('RealTokenLoaded', { token: currentToken.substring(0, 50) + '...' });
+
+            // Show JWT details
+            const jwtDetails = document.getElementById('jwt-details');
+            jwtDetails.innerHTML = `
+                <strong>Real JWT Token:</strong><br>
+                <code>${currentToken.substring(0, 100)}...</code><br>
+                <small>Full token available in console</small>
+            `;
+            jwtDetails.style.display = 'block';
+
+            // Hide the input field
+            document.getElementById('real-token-input').style.display = 'none';
+
+            enableNextStep('step3');
+        }
+
+        function initializeUPFForm() {
+            if (!currentToken) {
+                updateStepStatus('step3', 'error', 'No token available. Complete step 2 first.');
+                return;
+            }
+
+            updateStepStatus('step3', 'loading', 'Initializing UPF form...');
+
+            // Hide loading message
+            const loadingDiv = upfContainer.querySelector('.loading');
+            if (loadingDiv) {
+                loadingDiv.style.display = 'none';
+            }
+
+            const upfElement = document.getElementById('upf-checkout-element');
+
+            // Debug: Log the values being set
+            console.log('Setting UPF attributes:');
+            console.log('Token:', currentToken ? currentToken.substring(0, 50) + '...' : 'MISSING');
+            console.log('Amount: 2000');
+            console.log('Public Key: m_V4LrwNmJTWmD4qW7RffvOQ');
+            console.log('Bank Account ID:', mockBankAccountId);
+
+            // Validate JWT token format
+            if (currentToken) {
+                const tokenParts = currentToken.split('.');
+                if (tokenParts.length !== 3) {
+                    console.error('❌ Invalid JWT format - expected 3 parts, got', tokenParts.length);
+                    updateStepStatus('step3', 'error', 'Invalid JWT token format');
+                    return;
+                }
+                console.log('✅ JWT format is valid (3 parts)');
+            }
+
+            // Set all required attributes
+            upfElement.setAttribute('public-key', 'm_V4LrwNmJTWmD4qW7RffvOQ');
+            upfElement.setAttribute('amount', '2000');
+            upfElement.setAttribute('bank-account-id', mockBankAccountId);
+            upfElement.setAttribute('token', currentToken);
+
+            // Set advanced optional attributes
+            upfElement.setAttribute('reference', 'UPF Vercel Test Payment');
+            upfElement.setAttribute('test-mode', 'true');
+            upfElement.setAttribute('surcharge-disabled', 'false');
+            upfElement.setAttribute('disabled-fields', 'address2');
+            upfElement.setAttribute('submit-disabled', 'false');
+            upfElement.setAttribute('disabled-payment-methods', 'loan');
+            upfElement.setAttribute('source-id', 'Vercel:test-12345');
+            
+            // Debug: Verify attributes were set
+            console.log('UPF Element attributes after setting:');
+            console.log('token:', upfElement.getAttribute('token') ? 'SET' : 'MISSING');
+            console.log('amount:', upfElement.getAttribute('amount'));
+            console.log('public-key:', upfElement.getAttribute('public-key') ? 'SET' : 'MISSING');
+            console.log('bank-account-id:', upfElement.getAttribute('bank-account-id') ? 'SET' : 'MISSING');
+
+            upfElement.style.display = 'block';
+
+            // Give UPF a moment to process the attributes
+            setTimeout(() => {
+                console.log('Checking UPF status after attribute setting...');
+                console.log('Final attribute check:');
+                console.log('token:', upfElement.getAttribute('token') ? 'SET' : 'MISSING');
+                console.log('bank-account-id:', upfElement.getAttribute('bank-account-id') ? 'SET' : 'MISSING');
+
+                // If attributes are missing, try to re-set them
+                if (!upfElement.getAttribute('token') || !upfElement.getAttribute('bank-account-id')) {
+                    console.log('🔄 Re-setting missing attributes...');
+                    upfElement.setAttribute('token', currentToken);
+                    upfElement.setAttribute('bank-account-id', mockBankAccountId);
+                    upfElement.setAttribute('amount', '2000');
+                    upfElement.setAttribute('public-key', 'm_V4LrwNmJTWmD4qW7RffvOQ');
+                }
+            }, 1000);
+
+            // Add timeout to detect if UPF fails to load
+            setTimeout(() => {
+                const upfContent = upfElement.innerHTML;
+                if (upfContent && upfContent.includes('There was a problem loading this content')) {
+                    updateStepStatus('step3', 'error', 'UPF form failed to load - check token validity');
+                    addEvent('UPFLoadFailure', { 
+                        error: 'UPF failed to load',
+                        solution: 'Check if JWT token is valid and not expired'
+                    });
+                } else {
+                    updateStepStatus('step3', 'success', 'UPF form initialized successfully');
+                    addEvent('UPFFormInitialized', { 
+                        token: currentToken.substring(0, 50) + '...',
+                        amount: '2000',
+                        bankAccountId: mockBankAccountId
+                    });
+                }
+            }, 3000);
+        }
+
+        // Initialize page
+        window.addEventListener('load', function() {
+            addEvent('PageLoaded', { message: 'UPF Vercel Test Page Loaded' });
+            
+            // Check if jwt_decode library loaded
+            if (typeof jwt_decode !== 'undefined') {
+                addEvent('LibraryCheck', { jwt_decode: 'Loaded', message: 'JWT decode library ready' });
+            } else {
+                addEvent('LibraryCheck', { jwt_decode: 'Not loaded', message: 'JWT decode library failed to load, will use fallback method' });
+            }
+        });
+    </script>
+</body>
+</html>
