@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>8am UPF Integration Test - Vercel Deployment</title>
     <script src="https://cdn.jsdelivr.net/npm/jwt-decode@4.0.0/build/jwt-decode.min.js"
-            onload="console.log(' JWT decode library loaded')"
+            onload="console.log('✅ JWT decode library loaded')"
             onerror="console.error('❌ Failed to load JWT decode library')"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
@@ -78,14 +78,6 @@
             <upf-checkout
                 id="upf-checkout-element"
                 style="display: none;"
-                reference="UPF Vercel Test Payment"
-                surcharge-disabled="false"
-                disabled-fields="address2"
-                submit-disabled="false"
-                disabled-payment-methods="loan"
-                test-mode="true"
-                errors=""
-                source-id="Vercel:test-12345"
             ></upf-checkout>
             </div>
         </div>
@@ -303,7 +295,8 @@
                 console.log('✅ JWT format is valid (3 parts)');
             }
 
-            // Set all required attributes
+            // CRITICAL: Set attributes BEFORE showing the element
+            // Set all required attributes in the correct order
             upfElement.setAttribute('public-key', 'm_V4LrwNmJTWmD4qW7RffvOQ');
             upfElement.setAttribute('amount', '2000');
             upfElement.setAttribute('bank-account-id', mockBankAccountId);
@@ -325,24 +318,11 @@
             console.log('public-key:', upfElement.getAttribute('public-key') ? 'SET' : 'MISSING');
             console.log('bank-account-id:', upfElement.getAttribute('bank-account-id') ? 'SET' : 'MISSING');
 
-            upfElement.style.display = 'block';
-
-            // Give UPF a moment to process the attributes
+            // Wait a moment before showing the element to ensure attributes are set
             setTimeout(() => {
-                console.log('Checking UPF status after attribute setting...');
-                console.log('Final attribute check:');
-                console.log('token:', upfElement.getAttribute('token') ? 'SET' : 'MISSING');
-                console.log('bank-account-id:', upfElement.getAttribute('bank-account-id') ? 'SET' : 'MISSING');
-
-                // If attributes are missing, try to re-set them
-                if (!upfElement.getAttribute('token') || !upfElement.getAttribute('bank-account-id')) {
-                    console.log('🔄 Re-setting missing attributes...');
-                    upfElement.setAttribute('token', currentToken);
-                    upfElement.setAttribute('bank-account-id', mockBankAccountId);
-                    upfElement.setAttribute('amount', '2000');
-                    upfElement.setAttribute('public-key', 'm_V4LrwNmJTWmD4qW7RffvOQ');
-                }
-            }, 1000);
+                upfElement.style.display = 'block';
+                console.log('UPF element is now visible');
+            }, 500);
 
             // Add timeout to detect if UPF fails to load
             setTimeout(() => {
